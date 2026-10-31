@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps } from '@react-navigation/native';
@@ -9,6 +8,8 @@ import { Screen } from '@/shared/ui/Screen';
 import { Card } from '@/shared/ui/Card';
 import { Button } from '@/shared/ui/Button';
 import { useAuthStore } from '@/core/store/useAuthStore';
+import { APP_NAME } from '@/shared/config/brand';
+import { calculateTotal } from '@/core/store/useOrderStore';
 
 // Главная — вкладка таб-навигатора клиента, но конструктор заказа
 // и список заказов открываются в корневом стеке и в других вкладках.
@@ -27,7 +28,7 @@ export const HomeScreen = ({ navigation }: Props) => {
         {/* Шапка с брендом и кнопкой выхода из аккаунта */}
         <View className="flex-row justify-between items-center mb-6">
           <View className="flex-1 pr-3">
-            <Text className="text-2xl font-bold text-gray-900">Клининг.бел 🧹</Text>
+            <Text className="text-2xl font-bold text-gray-900">{APP_NAME} 🧹</Text>
             <Text className="text-gray-500 text-sm">Быстрый заказ уборки в Минске</Text>
             <Text className="text-xs text-gray-400 mt-1">
               Клиент: {phone ?? 'номер не указан'}
@@ -81,12 +82,14 @@ export const HomeScreen = ({ navigation }: Props) => {
               <Text className="text-xs text-gray-500 mt-1">
                 Очистка поверхностей, полов и сантехники
               </Text>
-              <Text className="text-sm font-semibold text-blue-600 mt-2">от 45 BYN</Text>
+              <Text className="text-sm font-semibold text-blue-600 mt-2">
+                от {calculateTotal('regular', 1, 1, [])} BYN
+              </Text>
             </View>
             <Button
               title="Заказать"
               className="px-3 py-2 flex-none"
-              onPress={() => navigation.navigate('OrderBuilder')}
+              onPress={() => navigation.navigate('OrderBuilder', { cleaningType: 'regular' })}
             />
           </Card>
 
@@ -94,12 +97,14 @@ export const HomeScreen = ({ navigation }: Props) => {
             <View className="flex-1 pr-3">
               <Text className="text-base font-bold text-gray-900">Генеральная уборка</Text>
               <Text className="text-xs text-gray-500 mt-1">Глубокая очистка каждого уголка</Text>
-              <Text className="text-sm font-semibold text-blue-600 mt-2">от 90 BYN</Text>
+              <Text className="text-sm font-semibold text-blue-600 mt-2">
+                от {calculateTotal('general', 1, 1, [])} BYN
+              </Text>
             </View>
             <Button
               title="Заказать"
               className="px-3 py-2 flex-none"
-              onPress={() => navigation.navigate('OrderBuilder')}
+              onPress={() => navigation.navigate('OrderBuilder', { cleaningType: 'general' })}
             />
           </Card>
         </View>

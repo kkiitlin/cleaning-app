@@ -46,7 +46,7 @@ export const validateBYPhone = (formattedPhone: string): { isValid: boolean; err
   const validCodes = ['25', '29', '33', '44', '17'];
 
   if (!validCodes.includes(operatorCode)) {
-    return { isValid: false, error: 'Некорректный код оператора (25, 29, 33, 44)' };
+    return { isValid: false, error: 'Некорректный код оператора (25, 29, 33, 44, 17)' };
   }
 
   return { isValid: true };

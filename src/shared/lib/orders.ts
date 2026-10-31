@@ -1,4 +1,4 @@
-import { AVAILABLE_EXTRAS } from '@/core/store/useOrderStore';
+import { AVAILABLE_EXTRAS, CLEANING_TYPES } from '@/core/store/useOrderStore';
 import type { CleaningParams } from '@/core/store/useOrderStore';
 
 /** Доля заказа, которая остаётся исполнителю (комиссия сервиса — 20%) */
@@ -38,6 +38,8 @@ export const formatOrderTime = (isoTime: string): string => {
 export const getExtraTitles = (extras: string[]): string[] =>
   extras.map((extraId) => AVAILABLE_EXTRAS.find((extra) => extra.id === extraId)?.title ?? extraId);
 
-/** Краткое описание объекта уборки: «2 комн., 1 сануз.» */
-export const formatCleaningParams = (params: CleaningParams): string =>
-  `${params.rooms} комн., ${params.bathrooms} сануз.`;
+/** Краткое описание объекта уборки: «Генеральная · 2 комн., 1 сануз.» */
+export const formatCleaningParams = (params: CleaningParams): string => {
+  const typeShortTitle = CLEANING_TYPES[params.type].title.replace(' уборка', '');
+  return `${typeShortTitle} · ${params.rooms} комн., ${params.bathrooms} сануз.`;
+};

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { FlatList, Text, View } from 'react-native';
+import { FlatList, Text, TouchableOpacity, View } from 'react-native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,6 +10,11 @@ import { Card } from '@/shared/ui/Card';
 import { Button } from '@/shared/ui/Button';
 import { Order, OrderStatus, useOrderStore } from '@/core/store/useOrderStore';
 import { useAuthStore } from '@/core/store/useAuthStore';
+import {
+  CLIENT_ACTIVE_STATUSES,
+  CLIENT_STATUS_TITLES,
+  STATUS_STYLES,
+} from '@/shared/lib/orderStatus';
 import { formatCleaningParams, formatOrderTime, getExtraTitles } from '@/shared/lib/orders';
 
 // Список заказов — вкладка клиента, но кнопка «Заказать уборку»
@@ -19,23 +24,7 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 
-/** Русские названия статусов заказа для клиента */
-const STATUS_TITLES: Record<OrderStatus, string> = {
-  new: 'Ищем клинера',
-  accepted: 'Клинер назначен',
-  in_progress: 'Уборка идёт',
-  completed: 'Заказ выполнен',
-};
-
-const STATUS_STYLES: Record<OrderStatus, { badge: string; text: string }> = {
-  new: { badge: 'bg-blue-100', text: 'text-blue-700' },
-  accepted: { badge: 'bg-amber-100', text: 'text-amber-700' },
-  in_progress: { badge: 'bg-purple-100', text: 'text-purple-700' },
-  completed: { badge: 'bg-green-100', text: 'text-green-700' },
-};
-
 /** Заказ ещё в работе, пока не завершён */
-const ACTIVE_STATUSES: OrderStatus[] = ['new', 'accepted', 'in_progress'];
 
 export const ClientOrdersScreen = ({ navigation }: Props) => {
   // Подписки раздельные, чтобы не тянуть весь стейт целиком
@@ -51,8 +40,8 @@ export const ClientOrdersScreen = ({ navigation }: Props) => {
     const own = getClientOrders(clientPhone);
 
     return own.sort((a, b) => {
-      const aActive = ACTIVE_STATUSES.includes(a.status) ? 0 : 1;
-      const bActive = ACTIVE_STATUSES.includes(b.status) ? 0 : 1;
+      const aActive = CLIENT_ACTIVE_STATUSES.includes(a.status) ? 0 : 1;
+      const bActive = CLIENT_ACTIVE_STATUSES.includes(b.status) ? 0 : 1;
 
       if (aActive !== bActive) {
         return aActive - bActive;
@@ -63,18 +52,22 @@ export const ClientOrdersScreen = ({ navigation }: Props) => {
   }, [getClientOrders, clientPhone, orders]);
 
   const activeOrdersCount = clientOrders.filter((order) =>
-    ACTIVE_STATUSES.includes(order.status)
+    CLIENT_ACTIVE_STATUSES.includes(order.status)
   ).length;
 
   const renderOrder = ({ item }: { item: Order }) => {
     const extraTitles = getExtraTitles(item.cleaningParams.extras);
 
     return (
-      <Card>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('ClientOrderDetail', { orderId: item.id })}
+        activeOpacity={0.9}
+      >
+        <Card>
         <View className="flex-row justify-between items-start mb-2">
           <View className={`px-3 py-1 rounded-full ${STATUS_STYLES[item.status].badge}`}>
             <Text className={`text-xs font-semibold ${STATUS_STYLES[item.status].text}`}>
-              {STATUS_TITLES[item.status]}
+              {CLIENT_STATUS_TITLES[item.status]}
             </Text>
           </View>
           <Text className="text-lg font-bold text-gray-900">{item.price} BYN</Text>
@@ -97,6 +90,7 @@ export const ClientOrdersScreen = ({ navigation }: Props) => {
           <Text className="text-xs text-gray-400">Заказ {item.id}</Text>
         </View>
       </Card>
+      </TouchableOpacity>
     );
   };
 

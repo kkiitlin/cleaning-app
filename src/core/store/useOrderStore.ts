@@ -19,14 +19,32 @@ export const AVAILABLE_EXTRAS: ExtraService[] = [
   { id: 'windows', title: 'Мытье окон (1 шт)', price: 15 },
 ];
 
+// Тип уборки и тарифы для каждого типа (BYN)
+export type CleaningType = 'regular' | 'general';
+
+export const CLEANING_TYPES: Record<
+  CleaningType,
+  { title: string; basePrice: number; roomPrice: number; bathroomPrice: number }
+> = {
+  regular: { title: 'Поддерживающая уборка', basePrice: 45, roomPrice: 15, bathroomPrice: 20 },
+  general: { title: 'Генеральная уборка', basePrice: 90, roomPrice: 25, bathroomPrice: 30 },
+};
+
 // Параметры уборки — то, из чего складывается заказ
 export interface CleaningParams {
   rooms: number;
   bathrooms: number;
   extras: string[]; // ID выбранных услуг из AVAILABLE_EXTRAS
+  type: CleaningType;
 }
 
-export type OrderStatus = 'new' | 'accepted' | 'in_progress' | 'completed';
+export type OrderStatus =
+  | 'new'
+  | 'accepted'
+  | 'in_progress'
+  | 'awaiting_confirmation'
+  | 'completed'
+  | 'cancelled';
 
 /**
  * Объединённый заказ: клиент его создаёт, клинер исполняет.
@@ -41,6 +59,9 @@ export interface Order {
   clientPhone: string;
   cleanerName: string | null; // null, пока заказ никто не принял
   status: OrderStatus;
+  comment?: string; // Комментарий клиента для клинера
+  rating?: number; // Оценка клиента (1-5)
+  review?: string; // Отзыв клиента
 }
 
 // Данные, которые передаёт клиент: id, статус и исполнителя присваивает стор
@@ -50,19 +71,26 @@ export interface NewOrder {
   time: string;
   price: number;
   clientPhone?: string; // Если не указан — подставим телефон авторизованного пользователя
+  comment?: string; // Комментарий для клинера
 }
 
 interface OrderState {
-  // Конструктор заказа клиента (OrderBuilder -> Address -> Checkout)
+  // Черновик заказа клиента (OrderBuilder -> Address -> Checkout)
   roomsCount: number;
   bathroomsCount: number;
   selectedExtras: string[]; // Массив ID выбранных услуг
+  cleaningType: CleaningType;
+  scheduledAt: string | null; // Дата и время уборки в ISO
+  comment: string; // Комментарий клиента для клинера
   address: string;
   totalPrice: number;
 
   setRoomsCount: (count: number) => void;
   setBathroomsCount: (count: number) => void;
   toggleExtra: (extraId: string) => void;
+  setCleaningType: (cleaningType: CleaningType) => void;
+  setScheduledAt: (iso: string | null) => void;
+  setComment: (comment: string) => void;
   setAddress: (address: string) => void;
   resetOrder: () => void;
 
@@ -74,6 +102,13 @@ interface OrderState {
   // Отклик клинера: заказ закрепляется за исполнителем
   acceptOrder: (orderId: string, cleanerName: string) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  // Отмена клиентом: только пока статус 'new'
+  cancelOrder: (orderId: string) => void;
+  // Отказ клинера: только 'accepted' и только тем же клинером
+  releaseOrder: (orderId: string, cleanerName: string) => void;
+  // Подтверждение клиентом: 'awaiting_confirmation' -> 'completed'
+  confirmOrder: (orderId: string) => void;
+
   // Срез заказов конкретного клиента (история заказов)
   getClientOrders: (clientPhone: string) => Order[];
   // Срез свободных заказов для ленты исполнителей
@@ -91,7 +126,7 @@ const scheduledTime = (hoursFromNow: number): string => {
 const MOCK_ORDERS: Order[] = [
   {
     id: 'ord-101',
-    cleaningParams: { rooms: 2, bathrooms: 1, extras: ['fridge'] },
+    cleaningParams: { rooms: 2, bathrooms: 1, extras: ['fridge'], type: 'regular' },
     address: 'г. Минск, ул. Немига, 12, кв. 45',
     time: scheduledTime(2),
     price: 65,
@@ -101,7 +136,7 @@ const MOCK_ORDERS: Order[] = [
   },
   {
     id: 'ord-102',
-    cleaningParams: { rooms: 3, bathrooms: 2, extras: ['windows', 'oven'] },
+    cleaningParams: { rooms: 3, bathrooms: 2, extras: ['windows', 'oven'], type: 'regular' },
     address: 'г. Минск, пр-т Независимости, 85, кв. 12',
     time: scheduledTime(5),
     price: 115,
@@ -111,35 +146,46 @@ const MOCK_ORDERS: Order[] = [
   },
 ];
 
-// Базовые тарифы в BYN
-const BASE_PRICE = 45; // Базовая стоимость выезда
-const ROOM_PRICE = 15; // Стоимость за каждую комнату
-const BATHROOM_PRICE = 20; // Стоимость за каждый санузел
-
-// Вспомогательная функция для расчета итоговой цены
-const calculateTotal = (rooms: number, bathrooms: number, extras: string[]): number => {
+// Расчёт итоговой цены по тарифу выбранного типа уборки
+export const calculateTotal = (
+  type: CleaningType,
+  rooms: number,
+  bathrooms: number,
+  extras: string[]
+): number => {
+  const tariff = CLEANING_TYPES[type];
   const extrasTotal = extras.reduce((sum, extraId) => {
     const item = AVAILABLE_EXTRAS.find((e) => e.id === extraId);
     return sum + (item ? item.price : 0);
   }, 0);
 
-  return BASE_PRICE + rooms * ROOM_PRICE + bathrooms * BATHROOM_PRICE + extrasTotal;
+  return tariff.basePrice + rooms * tariff.roomPrice + bathrooms * tariff.bathroomPrice + extrasTotal;
 };
+
+/** Меняет один заказ по id, остальные возвращает без изменений */
+const updateOrder = (
+  orders: Order[],
+  orderId: string,
+  update: (order: Order) => Order
+): Order[] => orders.map((order): Order => (order.id === orderId ? update(order) : order));
 
 /** Инициализатор стора заказов: тело вынесено отдельно, чтобы обернуть его в persist */
 const orderStoreInitializer: StateCreator<OrderState> = (set, get) => ({
   roomsCount: 1,
   bathroomsCount: 1,
   selectedExtras: [],
+  cleaningType: 'regular',
+  scheduledAt: null,
+  comment: '',
   address: '',
-  totalPrice: calculateTotal(1, 1, []),
+  totalPrice: calculateTotal('regular', 1, 1, []),
 
   setRoomsCount: (count) =>
     set((state) => {
       const newCount = Math.max(1, count); // Не меньше 1 комнаты
       return {
         roomsCount: newCount,
-        totalPrice: calculateTotal(newCount, state.bathroomsCount, state.selectedExtras),
+        totalPrice: calculateTotal(state.cleaningType, newCount, state.bathroomsCount, state.selectedExtras),
       };
     }),
 
@@ -148,7 +194,7 @@ const orderStoreInitializer: StateCreator<OrderState> = (set, get) => ({
       const newCount = Math.max(1, count); // Не меньше 1 санузла
       return {
         bathroomsCount: newCount,
-        totalPrice: calculateTotal(state.roomsCount, newCount, state.selectedExtras),
+        totalPrice: calculateTotal(state.cleaningType, state.roomsCount, newCount, state.selectedExtras),
       };
     }),
 
@@ -161,9 +207,19 @@ const orderStoreInitializer: StateCreator<OrderState> = (set, get) => ({
 
       return {
         selectedExtras: newExtras,
-        totalPrice: calculateTotal(state.roomsCount, state.bathroomsCount, newExtras),
+        totalPrice: calculateTotal(state.cleaningType, state.roomsCount, state.bathroomsCount, newExtras),
       };
     }),
+
+  setCleaningType: (cleaningType) =>
+    set((state) => ({
+      cleaningType,
+      totalPrice: calculateTotal(cleaningType, state.roomsCount, state.bathroomsCount, state.selectedExtras),
+    })),
+
+  setScheduledAt: (iso) => set({ scheduledAt: iso }),
+
+  setComment: (comment) => set({ comment }),
 
   setAddress: (address) => set({ address }),
 
@@ -172,8 +228,11 @@ const orderStoreInitializer: StateCreator<OrderState> = (set, get) => ({
       roomsCount: 1,
       bathroomsCount: 1,
       selectedExtras: [],
+      cleaningType: 'regular',
+      scheduledAt: null,
+      comment: '',
       address: '',
-      totalPrice: calculateTotal(1, 1, []),
+      totalPrice: calculateTotal('regular', 1, 1, []),
     }),
 
   // Заказы обеих ролей живут в одном массиве
@@ -181,6 +240,7 @@ const orderStoreInitializer: StateCreator<OrderState> = (set, get) => ({
 
   createOrder: (order) => {
     const id = `ord-${Date.now()}`;
+    const comment = order.comment?.trim();
 
     const newOrder: Order = {
       id,
@@ -192,6 +252,7 @@ const orderStoreInitializer: StateCreator<OrderState> = (set, get) => ({
       clientPhone: order.clientPhone ?? useAuthStore.getState().phone ?? 'Номер не указан',
       cleanerName: null,
       status: 'new',
+      comment: comment ? comment : undefined,
     };
 
     set((state) => ({ orders: [newOrder, ...state.orders] }));
@@ -202,21 +263,44 @@ const orderStoreInitializer: StateCreator<OrderState> = (set, get) => ({
   // Принять можно только свободный заказ — иначе отклик игнорируем
   acceptOrder: (orderId, cleanerName) =>
     set((state) => ({
-      orders: state.orders.map((order) =>
-        order.id === orderId && order.status === 'new'
-          ? { ...order, status: 'accepted', cleanerName }
-          : order
+      orders: updateOrder(state.orders, orderId, (order) =>
+        order.status === 'new' ? { ...order, status: 'accepted', cleanerName } : order
       ),
     })),
 
   updateOrderStatus: (orderId, status) =>
     set((state) => ({
-      orders: state.orders.map((order) => (order.id === orderId ? { ...order, status } : order)),
+      orders: updateOrder(state.orders, orderId, (order) => ({ ...order, status })),
+    })),
+
+  cancelOrder: (orderId) =>
+    set((state) => ({
+      orders: updateOrder(state.orders, orderId, (order) =>
+        order.status === 'new' ? { ...order, status: 'cancelled' } : order
+      ),
+    })),
+
+  releaseOrder: (orderId, cleanerName) =>
+    set((state) => ({
+      orders: updateOrder(state.orders, orderId, (order) =>
+        order.status === 'accepted' && order.cleanerName === cleanerName
+          ? { ...order, status: 'new', cleanerName: null }
+          : order
+      ),
+    })),
+
+  confirmOrder: (orderId) =>
+    set((state) => ({
+      orders: updateOrder(state.orders, orderId, (order) =>
+        order.status === 'awaiting_confirmation' ? { ...order, status: 'completed' } : order
+      ),
     })),
 
   // Возвращаем копии, чтобы экраны не мутировали стейт напрямую
   getClientOrders: (clientPhone) =>
-    get().orders.filter((order) => order.clientPhone === clientPhone).map((order) => ({ ...order })),
+    get()
+      .orders.filter((order) => order.clientPhone === clientPhone)
+      .map((order) => ({ ...order })),
 
   getAvailableOrders: () =>
     get()
@@ -234,7 +318,22 @@ export const useOrderStore = create<OrderState>()(
   persist(orderStoreInitializer, {
     name: ORDERS_STORAGE_KEY,
     storage: createJSONStorage<PersistedOrderState>(() => AsyncStorage),
-    version: 1,
+    version: 2,
+    // Старые заказы (версия 1) были без типа уборки — проставляем 'regular' только им
+    migrate: (persisted: unknown): PersistedOrderState => {
+      const persistedState = persisted as Partial<PersistedOrderState> | undefined;
+      const orders = (persistedState?.orders ?? MOCK_ORDERS).map(
+        (order): Order => ({
+          ...order,
+          cleaningParams: {
+            ...order.cleaningParams,
+            type: order.cleaningParams?.type ?? 'regular',
+          },
+        })
+      );
+
+      return { orders };
+    },
     partialize: (state): PersistedOrderState => ({ orders: state.orders }),
   })
 );

@@ -11,6 +11,9 @@ import { Button } from '@/shared/ui/Button';
 import { Order, OrderStatus, useOrderStore } from '@/core/store/useOrderStore';
 import { useAuthStore } from '@/core/store/useAuthStore';
 import {
+  CLEANER_ACTIVE_STATUSES,
+} from '@/shared/lib/orderStatus';
+import {
   formatCleaningParams,
   formatOrderTime,
   getCleanerPayout,
@@ -25,7 +28,7 @@ type Props = CompositeScreenProps<
 >;
 
 /** Заказ считается «в работе», пока закреплён за исполнителем и не завершён */
-const ACTIVE_STATUSES: OrderStatus[] = ['accepted', 'in_progress'];
+
 
 export const CleanerFeedScreen = ({ navigation }: Props) => {
   // Подписки на стор раздельные, чтобы не тянуть весь стейт целиком
@@ -40,7 +43,7 @@ export const CleanerFeedScreen = ({ navigation }: Props) => {
   // Текущий заказ исполнителя: закреплён за номером, под которым он вошёл
   const activeOrder = useMemo(
     () =>
-      orders.find((order) => order.cleanerName === phone && ACTIVE_STATUSES.includes(order.status)) ??
+      orders.find((order) => order.cleanerName === phone && CLEANER_ACTIVE_STATUSES.includes(order.status)) ??
       null,
     [orders, phone]
   );

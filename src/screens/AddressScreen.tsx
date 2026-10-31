@@ -8,12 +8,17 @@ import { Card } from '@/shared/ui/Card';
 import { Input } from '@/shared/ui/Input';
 import { Button } from '@/shared/ui/Button';
 import { useOrderStore } from '@/core/store/useOrderStore';
+import { formatAddress } from '@/shared/lib/address';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Address'>;
 
 export const AddressScreen = ({ navigation }: Props) => {
   const setAddress = useOrderStore((state) => state.setAddress);
-  
+
+  // Поле комментария к заказу
+  const comment = useOrderStore((state) => state.comment);
+  const setComment = useOrderStore((state) => state.setComment);
+
   // Локальные стейты для формы
   const [street, setStreet] = useState('');
   const [apartment, setApartment] = useState('');
@@ -28,7 +33,7 @@ export const AddressScreen = ({ navigation }: Props) => {
   };
 
   const handleSaveAddress = () => {
-    const fullAddress = `${street}, п. ${entrance}, кв. ${apartment}`;
+    const fullAddress = formatAddress({ street, entrance, apartment });
     setAddress(fullAddress);
     
     // Переход к экрану оплаты
@@ -83,11 +88,23 @@ export const AddressScreen = ({ navigation }: Props) => {
               </View>
             </View>
 
+            <View className="mt-4">
+              <Input
+                label="Комментарий для клинера"
+                placeholder="Например: есть кот, код домофона 45К"
+                value={comment}
+                onChangeText={setComment}
+                multiline
+                numberOfLines={3}
+                maxLength={300}
+              />
+            </View>
+
             <Button
               title="Подтвердить адрес"
               onPress={handleSaveAddress}
               className="mt-4"
-              disabled={!street}
+              disabled={street.trim().length < 3}
             />
           </Card>
         </View>

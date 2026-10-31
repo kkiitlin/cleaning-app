@@ -5,7 +5,8 @@ import { RootStackParamList } from '@/core/navigation/types';
 import { Screen } from '@/shared/ui/Screen';
 import { Card } from '@/shared/ui/Card';
 import { Button } from '@/shared/ui/Button';
-import { useOrderStore, AVAILABLE_EXTRAS } from '@/core/store/useOrderStore';
+import { useOrderStore, AVAILABLE_EXTRAS, CLEANING_TYPES } from '@/core/store/useOrderStore';
+import { formatOrderTime } from '@/shared/lib/orders';
 import { useAuthStore } from '@/core/store/useAuthStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
@@ -23,7 +24,9 @@ export const CheckoutScreen = ({ navigation }: Props) => {
   const bathroomsCount = useOrderStore((state) => state.bathroomsCount);
   const selectedExtras = useOrderStore((state) => state.selectedExtras);
   const address = useOrderStore((state) => state.address);
+  const comment = useOrderStore((state) => state.comment);
   const totalPrice = useOrderStore((state) => state.totalPrice);
+  const cleaningType = useOrderStore((state) => state.cleaningType);
   const createOrder = useOrderStore((state) => state.createOrder);
   const resetOrder = useOrderStore((state) => state.resetOrder);
   const phone = useAuthStore((state) => state.phone);
@@ -38,19 +41,26 @@ export const CheckoutScreen = ({ navigation }: Props) => {
     .map((id) => AVAILABLE_EXTRAS.find((e) => e.id === id)?.title)
     .filter((title): title is string => Boolean(title));
 
-  // Заказ назначаем на ближайший час
-  const scheduledAt = new Date(Date.now() + 60 * 60 * 1000);
+  // Дата и время берём из стора (должны быть выбраны кнопками-чипсами)
+  const scheduledAt = useOrderStore((state) => state.scheduledAt);
 
   const handlePay = () => {
+    if (!scheduledAt) return;
     setIsProcessing(true);
 
     // Имитация сетевого запроса к платежному шлюзу (BePaid / ЕРИП)
     setTimeout(() => {
       // Заказ уходит в общий стор: его сразу видят исполнители (см. CleanerFeedScreen)
       const orderId = createOrder({
-        cleaningParams: { rooms: roomsCount, bathrooms: bathroomsCount, extras: selectedExtras },
+        cleaningParams: {
+          rooms: roomsCount,
+          bathrooms: bathroomsCount,
+          extras: selectedExtras,
+          type: cleaningType,
+        },
         address: address || 'г. Минск, адрес уточняется у клиента',
-        time: scheduledAt.toISOString(),
+        comment: comment.trim().length > 0 ? comment.trim() : undefined,
+        time: new Date(scheduledAt).toISOString(),
         price: totalPrice,
         clientPhone: phone ?? undefined,
       });
@@ -113,6 +123,11 @@ export const CheckoutScreen = ({ navigation }: Props) => {
             <Text className="font-semibold text-gray-900">
               {roomsCount} комн., {bathroomsCount} сануз.
             </Text>
+        <View className="flex-row justify-between mb-2">
+            <Text className="text-gray-600">Тип уборки:</Text>
+            <Text className="font-semibold text-gray-900">{CLEANING_TYPES[cleaningType].title}</Text>
+        </View>
+
           </View>
 
           {selectedExtraTitles.length > 0 && (
@@ -126,6 +141,13 @@ export const CheckoutScreen = ({ navigation }: Props) => {
             </View>
           )}
 
+          {comment.trim().length > 0 ? (
+            <View className="mb-2">
+              <Text className="text-gray-600 mb-1">Комментарий для клинера:</Text>
+              <Text className="text-gray-900 font-medium ml-2">{comment}</Text>
+            </View>
+          ) : null}
+
           <View className="flex-row justify-between mt-2 pt-2 border-t border-gray-100">
             <Text className="text-gray-600">Адрес:</Text>
             <Text className="font-semibold text-gray-900 flex-1 text-right ml-4">
@@ -136,6 +158,13 @@ export const CheckoutScreen = ({ navigation }: Props) => {
           <View className="flex-row justify-between mt-2">
             <Text className="text-gray-600">Телефон:</Text>
             <Text className="font-semibold text-gray-900">{phone ?? 'Не указан'}</Text>
+          </View>
+
+          <View className="flex-row justify-between mt-2">
+            <Text className="text-gray-600">Дата и время:</Text>
+            <Text className="font-semibold text-gray-900">
+              {scheduledAt ? formatOrderTime(scheduledAt) : 'Не выбрано'}
+            </Text>
           </View>
         </Card>
 
@@ -169,7 +198,11 @@ export const CheckoutScreen = ({ navigation }: Props) => {
           <Text className="text-3xl font-bold text-gray-900">{totalPrice} BYN</Text>
         </View>
 
-        <Button title="Оплатить и заказать" onPress={handlePay} disabled={isProcessing}>
+        <Button
+          title="Оплатить и заказать"
+          onPress={handlePay}
+          disabled={isProcessing || !scheduledAt}
+        >
           {isProcessing ? <ActivityIndicator color="#ffffff" /> : null}
         </Button>
       </View>

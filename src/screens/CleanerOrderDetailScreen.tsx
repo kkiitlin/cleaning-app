@@ -8,6 +8,11 @@ import { Button } from '@/shared/ui/Button';
 import { OrderStatus, useOrderStore } from '@/core/store/useOrderStore';
 import { useAuthStore } from '@/core/store/useAuthStore';
 import {
+  CLEANER_ACTIVE_STATUSES,
+  CLEANER_STATUS_TITLES,
+  STATUS_STYLES,
+} from '@/shared/lib/orderStatus';
+import {
   formatCleaningParams,
   formatOrderTime,
   getCleanerPayout,
@@ -17,21 +22,7 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, 'CleanerOrderDetail'>;
 
 /** Заказ считается «в работе», пока закреплён за исполнителем и не завершён */
-const ACTIVE_STATUSES: OrderStatus[] = ['accepted', 'in_progress'];
 
-const STATUS_TITLES: Record<OrderStatus, string> = {
-  new: 'Свободный заказ',
-  accepted: 'Закреплён за вами',
-  in_progress: 'Уборка выполняется',
-  completed: 'Заказ завершён',
-};
-
-const STATUS_TEXT_COLORS: Record<OrderStatus, string> = {
-  new: 'text-blue-700',
-  accepted: 'text-amber-700',
-  in_progress: 'text-purple-700',
-  completed: 'text-green-700',
-};
 
 export const CleanerOrderDetailScreen = ({ navigation, route }: Props) => {
   const { orderId } = route.params;
@@ -40,6 +31,7 @@ export const CleanerOrderDetailScreen = ({ navigation, route }: Props) => {
   const orders = useOrderStore((state) => state.orders);
   const acceptOrder = useOrderStore((state) => state.acceptOrder);
   const updateOrderStatus = useOrderStore((state) => state.updateOrderStatus);
+  const releaseOrder = useOrderStore((state) => state.releaseOrder);
   const phone = useAuthStore((state) => state.phone);
 
   // За заказом закрепляется телефон исполнителя, под которым он вошёл
@@ -48,7 +40,7 @@ export const CleanerOrderDetailScreen = ({ navigation, route }: Props) => {
   // Клинер может вести только один заказ одновременно
   const activeOrderId = useMemo(
     () =>
-      orders.find((item) => item.cleanerName === cleanerName && ACTIVE_STATUSES.includes(item.status))
+      orders.find((item) => item.cleanerName === cleanerName && CLEANER_ACTIVE_STATUSES.includes(item.status))
         ?.id ?? null,
     [orders, cleanerName]
   );
@@ -106,11 +98,29 @@ export const CleanerOrderDetailScreen = ({ navigation, route }: Props) => {
 
     if (order.status === 'accepted') {
       return (
-        <Button
-          title="Я на месте, начать уборку"
-          className="bg-green-600 active:bg-green-700"
-          onPress={() => updateOrderStatus(order.id, 'in_progress')}
-        />
+        <>
+          <Button
+            title="Я на месте, начать уборку"
+            className="bg-green-600 active:bg-green-700"
+            onPress={() => updateOrderStatus(order.id, 'in_progress')}
+          />
+          <Button
+            title="Отказаться от заказа"
+            className="mt-2 bg-gray-200 active:bg-gray-300"
+            onPress={() => {
+              Alert.alert('Отказаться от заказа?', 'Вы уверены, что хотите отказаться от этого заказа?', [
+                { text: 'Отмена', style: 'cancel' },
+                {
+                  text: 'Отказаться',
+                  onPress: () => {
+                    releaseOrder(order.id, cleanerName);
+                    navigation.goBack();
+                  },
+                },
+              ]);
+            }}
+          />
+        </>
       );
     }
 
@@ -132,8 +142,8 @@ export const CleanerOrderDetailScreen = ({ navigation, route }: Props) => {
       <View className="flex-row justify-between items-center mb-6">
         <View>
           <Text className="text-2xl font-bold text-gray-900">Заказ {order.id}</Text>
-          <Text className={`text-sm font-medium ${STATUS_TEXT_COLORS[order.status]}`}>
-            {STATUS_TITLES[order.status]}
+          <Text className={`text-sm font-medium ${STATUS_STYLES[order.status].text}`}>
+            {CLEANER_STATUS_TITLES[order.status]}
           </Text>
         </View>
         <TouchableOpacity
@@ -177,6 +187,13 @@ export const CleanerOrderDetailScreen = ({ navigation, route }: Props) => {
             </View>
           ) : null}
         </Card>
+
+        {order.comment ? (
+          <Card>
+            <Text className="text-lg font-semibold text-gray-800 mb-3">Комментарий клиента</Text>
+            <Text className="text-gray-700">{order.comment}</Text>
+          </Card>
+        ) : null}
 
         <Card>
           <Text className="text-lg font-semibold text-gray-800 mb-3">Доп. работы</Text>

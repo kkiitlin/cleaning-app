@@ -4,6 +4,7 @@ import { AuthScreen } from '@/screens/AuthScreen';
 import { OrderBuilderScreen } from '@/screens/OrderBuilderScreen';
 import { AddressScreen } from '@/screens/AddressScreen';
 import { CheckoutScreen } from '@/screens/CheckoutScreen';
+import { ClientOrderDetailScreen } from '@/screens/ClientOrderDetailScreen';
 import { CleanerOrderDetailScreen } from '@/screens/CleanerOrderDetailScreen';
 import { ClientTabNavigator } from '@/core/navigation/ClientTabNavigator';
 import { CleanerTabNavigator } from '@/core/navigation/CleanerTabNavigator';
@@ -16,8 +17,7 @@ export const RootNavigator = () => {
   const role = useAuthStore((state) => state.role);
 
   // Набор экранов зависит от роли: у клиента свои вкладки, у исполнителя — свои.
-  // Конструктор заказа и детали заказа живут в корневом стеке поверх табов,
-  // поэтому при переходе на них нижний Tab bar скрывается.
+  // Экраны поверх вкладок живут в корневом стеке, поэтому нижний Tab bar на них скрыт.
   const renderScreens = () => {
     if (!isAuthenticated || !role) {
       return <Stack.Screen name="Auth" component={AuthScreen} />;
@@ -38,15 +38,13 @@ export const RootNavigator = () => {
         <Stack.Screen name="OrderBuilder" component={OrderBuilderScreen} />
         <Stack.Screen name="Address" component={AddressScreen} />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
+        <Stack.Screen name="ClientOrderDetail" component={ClientOrderDetailScreen} />
       </Stack.Group>
     );
   };
 
-  const initialRouteName: keyof RootStackParamList = !isAuthenticated || !role
-    ? 'Auth'
-    : role === 'cleaner'
-      ? 'CleanerTabs'
-      : 'ClientTabs';
+  const initialRouteName: keyof RootStackParamList =
+    !isAuthenticated || !role ? 'Auth' : role === 'cleaner' ? 'CleanerTabs' : 'ClientTabs';
 
   return (
     // key сбрасывает состояние навигации при смене роли (выход и повторный вход),

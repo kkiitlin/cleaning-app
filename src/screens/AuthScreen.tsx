@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
 import { useAuthStore } from '@/core/store/useAuthStore';
 import { formatBYPhone, validateBYPhone } from '@/shared/lib/phone';
+import { APP_NAME } from '@/shared/config/brand';
 
 type AuthStep = 'phone' | 'role';
 
@@ -56,7 +57,7 @@ export const AuthScreen = () => {
     <Screen className="px-4 justify-center">
       <Card className="p-6">
         <Text className="text-2xl font-bold text-gray-900 mb-2 text-center">
-          Чистый Минск 🧹
+          {APP_NAME} 🧹
         </Text>
         <Text className="text-gray-500 mb-6 text-center text-sm">
           {step === 'phone' ? 'Введите номер телефона для входа' : 'Выберите режим входа'}

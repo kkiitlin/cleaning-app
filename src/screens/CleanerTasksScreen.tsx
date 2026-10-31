@@ -5,26 +5,15 @@ import { Card } from '@/shared/ui/Card';
 import { Order, OrderStatus, useOrderStore } from '@/core/store/useOrderStore';
 import { useAuthStore } from '@/core/store/useAuthStore';
 import {
+  CLEANER_STATUS_TITLES,
+  STATUS_STYLES,
+} from '@/shared/lib/orderStatus';
+import {
   formatCleaningParams,
   formatOrderTime,
   getCleanerPayout,
   getExtraTitles,
 } from '@/shared/lib/orders';
-
-/** Русские названия статусов для исполнителя */
-const STATUS_TITLES: Record<OrderStatus, string> = {
-  new: 'Свободный заказ',
-  accepted: 'Закреплён за вами',
-  in_progress: 'Уборка идёт',
-  completed: 'Выполнен',
-};
-
-const STATUS_STYLES: Record<OrderStatus, { badge: string; text: string }> = {
-  new: { badge: 'bg-blue-100', text: 'text-blue-700' },
-  accepted: { badge: 'bg-amber-100', text: 'text-amber-700' },
-  in_progress: { badge: 'bg-purple-100', text: 'text-purple-700' },
-  completed: { badge: 'bg-green-100', text: 'text-green-700' },
-};
 
 /** Задачи исполнителя: закреплённые за ним и уже завершённые заказы */
 const TASK_STATUSES: OrderStatus[] = ['accepted', 'in_progress', 'completed'];
@@ -63,7 +52,7 @@ export const CleanerTasksScreen = () => {
       <View className="flex-row justify-between items-start mb-2">
         <View className={`px-3 py-1 rounded-full ${STATUS_STYLES[item.status].badge}`}>
           <Text className={`text-xs font-semibold ${STATUS_STYLES[item.status].text}`}>
-            {STATUS_TITLES[item.status]}
+            {CLEANER_STATUS_TITLES[item.status]}
           </Text>
         </View>
         <Text className="text-lg font-bold text-green-600">+{getCleanerPayout(item.price)} BYN</Text>
